@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz detector demo</title>
+<style>
+  * { box-sizing: border-box }
+  body { margin: 0; color: #eef2ff; background: #111522; font: 1rem/1.5 system-ui, sans-serif }
+  main { max-width: 760px; margin: 0 auto; padding: clamp(1rem, 5vw, 3rem) }
+  h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.6rem) }
+  h2 { margin-top: 0; font-size: 1.15rem }
+  p { color: #c0c9dc }
+  section { margin-top: 1rem; padding: 1.2rem; border: 1px solid #3b465e; border-radius: 14px; background: #1c2334 }
+  .controls { display: flex; flex-wrap: wrap; gap: .6rem }
+  button { font: inherit; color: #eff3ff; background: #2e4062; border: 1px solid #6f86b1; border-radius: 8px; padding: .5rem .75rem; cursor: pointer }
+  button:hover { background: #3f5682 }
+  button:focus-visible { outline: 3px solid #ffc977; outline-offset: 3px }
+  output { display: block; color: #ffc977; font-weight: 600 }
+  ol { padding-left: 1.5rem }
+  li { margin: .45rem 0 }
+</style>
+<main>
+  <h1>Quiz detector demo</h1>
+  <p>Start a test, switch tabs or exit fullscreen, then return here to see what the browser reported.</p>
+  <section aria-labelledby="scenarios">
+    <h2 id="scenarios">Fullscreen test</h2>
+    <div class="controls" id="controls">
+      <button type="button" id="start">Start in fullscreen</button>
+      <button type="button" id="stop" disabled>End test</button>
+    </div>
+  </section>
+  <section aria-labelledby="results">
+    <h2 id="results">Detector output</h2>
+    <button type="button" id="clear">Clear log</button>
+    <output id="state" aria-live="polite"></output>
+    <p id="notice" role="status"></p>
+    <p>Tab hiding and fullscreen exit create review entries. Focus changes are informational.</p>
+    <ol id="events" aria-label="Event history"></ol>
+  </section>
+</main>
+<script>
+  const signals = {
+    blur: ['focused', false, 'Window focus lost', false],
+    focus: ['focused', true, 'Window focus restored', false],
+    hidden: ['visible', false, 'Tab hidden', true],
+    visible: ['visible', true, 'Tab shown', false],
+    exit: ['fullscreen', false, 'Fullscreen exited', true],
+    enter: ['fullscreen', true, 'Fullscreen entered', false]
+  };
+  const stateLabel = document.querySelector('#state');
+  const log = document.querySelector('#events');
+  const start = document.querySelector('#start');
+  const stop = document.querySelector('#stop');
+  const notice = document.querySelector('#notice');
+  let state = readState();
+  let reviews = 0;
+  let active = false;
+  function readState() {
+    return {
+      visible: document.visibilityState === 'visible',
+      focused: document.hasFocus(),
+      fullscreen: Boolean(document.fullscreenElement)
+    };
+  }
+  function render() {
+    const states = [
+      state.visible ? 'Visible tab' : 'Hidden tab',
+      state.focused ? 'Focused window' : 'Unfocused window',
+      state.fullscreen ? 'Fullscreen' : 'Windowed',
+      reviews + (reviews === 1 ? ' review entry' : ' review entries')
+    ];
+    stateLabel.textContent = states.join(' · ');
+  }
+  function record(action) {
+    if (!active) return;
+    const [key, value, label, review] = signals[action];
+    if (state[key] === value) return;
+    state[key] = value;
+    if (review) reviews++;
+    const entry = document.createElement('li');
+    entry.textContent = new Date().toLocaleTimeString() + ' · ' + label +
+      (review ? ' · Review' : ' · Information');
+    log.append(entry);
+    render();
+  }
+  function clearLog() {
+    reviews = 0;
+    log.replaceChildren();
+    render();
+  }
+  document.querySelector('#clear').addEventListener('click', clearLog);
+  document.addEventListener('visibilitychange', () => {
+    record(document.visibilityState === 'visible' ? 'visible' : 'hidden');
+  });
+  document.addEventListener('fullscreenchange', () => {
+    record(document.fullscreenElement ? 'enter' : 'exit');
+  });
+  window.addEventListener('blur', () => record('blur'));
+  window.addEventListener('focus', () => record('focus'));
+  start.addEventListener('click', async () => {
+    start.disabled = true;
+    notice.textContent = '';
+    try {
+      await document.documentElement.requestFullscreen();
+      if (!document.fullscreenElement) throw new Error('Fullscreen already ended');
+    } catch {
+      start.disabled = false;
+      notice.textContent = 'Fullscreen could not start. Open this page directly in a browser tab and try again.';
+      return;
+    }
+    state = readState();
+    active = true;
+    stop.disabled = false;
+    notice.textContent = 'Test running. If fullscreen ends, the test keeps recording until you end it.';
+    clearLog();
+  });
+  stop.addEventListener('click', async () => {
+    active = false;
+    stop.disabled = true;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      notice.textContent = 'Test ended. The event history is below.';
+    } catch {
+      notice.textContent = 'Test ended. Press Esc to leave fullscreen.';
+    }
+    state = readState();
+    start.disabled = false;
+    render();
+  });
+  render();
+</script>
+</html>

@@ -1,0 +1,13 @@
+/.local/
+/builds/
+/chats/
+/logs/
+/qcm_log.txt
+/screen_text.txt
+*.lnk
+*.exe
+*.zip
+__pycache__/
+*.py[cod]
+.env
+.env.*
